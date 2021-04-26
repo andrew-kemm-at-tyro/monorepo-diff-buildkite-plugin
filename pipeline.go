@@ -77,10 +77,22 @@ func diff(command string) ([]string, error) {
 	return strings.FieldsFunc(strings.TrimSpace(output), f), nil
 }
 
+func stepsContains(steps []Step, key string) bool {
+	for _, s := range steps {
+		if s.Key == key {
+			return true
+		}
+	}
+
+	return false
+}
+
 func stepsToTrigger(files []string, watch []WatchConfig) ([]Step, error) {
 	steps := []Step{}
 
+	// Trigger based on watched paths
 	for _, w := range watch {
+		// Check watched paths
 		for _, p := range w.Paths {
 			for _, f := range files {
 				match, err := matchPath(p, f)
@@ -90,6 +102,21 @@ func stepsToTrigger(files []string, watch []WatchConfig) ([]Step, error) {
 				if match {
 					steps = append(steps, w.Step)
 					break
+				}
+			}
+		}
+	}
+
+	// Trigger based on step dependencies
+	modified := true
+	for modified {
+		modified = false
+		for _, w := range watch {
+			for _, dependency := range w.Step.DependsOn {
+				if stepsContains(steps, dependency) && !stepsContains(steps, w.Step.Key) {
+					steps = append(steps, w.Step)
+					modified = true
+
 				}
 			}
 		}

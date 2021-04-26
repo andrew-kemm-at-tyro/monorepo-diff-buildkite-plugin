@@ -36,6 +36,8 @@ type WatchConfig struct {
 
 // Step is buildkite pipeline definition
 type Step struct {
+	Key       string            `yaml:"key,omitempty"`
+	DependsOn []string          `yaml:"depends_on,omitempty"`
 	Trigger   string            `yaml:"trigger,omitempty"`
 	Label     string            `yaml:"label,omitempty"`
 	Build     Build             `yaml:"build,omitempty"`

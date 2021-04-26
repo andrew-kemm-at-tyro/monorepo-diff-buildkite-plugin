@@ -239,6 +239,117 @@ func TestPipelinesStepsToTrigger(t *testing.T) {
 	}
 }
 
+func TestPipelineTriggersBasedOnDependencies(t *testing.T) {
+	changedFiles := []string{
+		"service-a",
+	}
+	watchConfigs := []WatchConfig{
+		{
+			Paths: []string{"service-a"},
+			Step: Step{
+				Key:     "service-a",
+				Trigger: "service-a-trigger",
+			},
+		},
+		{
+			Paths: []string{"service-b"},
+			Step: Step{
+				Key:       "service-b",
+				Trigger:   "service-b-trigger",
+				DependsOn: []string{"service-a"},
+			},
+		},
+		{
+			Paths: []string{"service-c"},
+			Step: Step{
+				Key:       "service-c",
+				Trigger:   "service-c-trigger",
+				DependsOn: []string{"service-b"},
+			},
+		},
+		{
+			Paths: []string{"service-d"},
+			Step: Step{
+				Key:     "service-d",
+				Trigger: "service-d-trigger",
+			},
+		},
+	}
+	expectedSteps := []Step{
+		{
+			Key:     "service-a",
+			Trigger: "service-a-trigger",
+		},
+		{
+			Key:       "service-b",
+			DependsOn: []string{"service-a"},
+			Trigger:   "service-b-trigger",
+		},
+		{
+			Key:       "service-c",
+			DependsOn: []string{"service-b"},
+			Trigger:   "service-c-trigger",
+		},
+	}
+
+	steps, err := stepsToTrigger(changedFiles, watchConfigs)
+
+	assert.NoError(t, err)
+	assert.Equal(t, steps, expectedSteps)
+}
+
+func TestReordersStepsBasedOnDependencies(t *testing.T) {
+	changedFiles := []string{
+		"service-a",
+	}
+	watchConfigs := []WatchConfig{
+		{
+			Paths: []string{"service-c"},
+			Step: Step{
+				Key:       "service-c",
+				Trigger:   "service-c-trigger",
+				DependsOn: []string{"service-b"},
+			},
+		},
+		{
+			Paths: []string{"service-b"},
+			Step: Step{
+				Key:       "service-b",
+				Trigger:   "service-b-trigger",
+				DependsOn: []string{"service-a"},
+			},
+		},
+		{
+			Paths: []string{"service-a"},
+			Step: Step{
+				Key:     "service-a",
+				Trigger: "service-a-trigger",
+			},
+		},
+	}
+	expectedSteps := []Step{
+		{
+			Key:     "service-a",
+			Trigger: "service-a-trigger",
+		},
+		{
+			Key:       "service-b",
+			DependsOn: []string{"service-a"},
+			Trigger:   "service-b-trigger",
+		},
+		{
+			Key:       "service-c",
+			DependsOn: []string{"service-b"},
+			Trigger:   "service-c-trigger",
+		},
+	}
+
+	steps, err := stepsToTrigger(changedFiles, watchConfigs)
+
+	assert.NoError(t, err)
+	assert.Equal(t, steps, expectedSteps)
+}
+
 func TestGeneratePipeline(t *testing.T) {
 	steps := []Step{
 		{
