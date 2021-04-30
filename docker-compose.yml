@@ -7,6 +7,6 @@ services:
       dockerfile: ./tests/Dockerfile
   plugin_lint:
     image: buildkite/plugin-linter:latest
-    command: ['--id', 'chronotc/monorepo-diff']
+    command: ['--id', 'andrew-kemm-at-tyro/monorepo-diff']
     volumes:
       - ".:/plugin"
