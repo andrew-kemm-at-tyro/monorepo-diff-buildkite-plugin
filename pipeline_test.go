@@ -239,6 +239,270 @@ func TestPipelinesStepsToTrigger(t *testing.T) {
 	}
 }
 
+func TestPipelinesStepsToTrigger_SetsStepKey(t *testing.T) {
+	changedFiles := []string{"service-a.txt"}
+	watchConfigs := []WatchConfig{
+		{
+			Paths: []string{"service-a.txt"},
+			Key:   "service-a",
+			Step:  Step{Trigger: "service-a-trigger"},
+		},
+	}
+	expectedSteps := []Step{
+		Step{
+			Trigger: "service-a-trigger",
+			Key:     "service-a",
+		},
+	}
+
+	steps, err := stepsToTrigger(changedFiles, watchConfigs)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedSteps, steps)
+}
+
+func TestPipelinesStepsToTrigger_LetsExistingKeyBe(t *testing.T) {
+	changedFiles := []string{"service-a.txt"}
+	watchConfigs := []WatchConfig{
+		{
+			Paths: []string{"service-a.txt"},
+			Step: Step{
+				Key:     "existing-key",
+				Trigger: "service-a-trigger",
+			},
+		},
+	}
+	expectedSteps := []Step{
+		Step{
+			Trigger: "service-a-trigger",
+			Key:     "existing-key",
+		},
+	}
+
+	steps, err := stepsToTrigger(changedFiles, watchConfigs)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedSteps, steps)
+}
+
+// If a steps dependency has changed, it should be triggered.
+func TestStepsToTrigger_TriggersAStepWhenDependencyHasTriggered(t *testing.T) {
+	changedFiles := []string{"service-a.txt"}
+	watchConfigs := []WatchConfig{
+		{
+			Key:   "service-a-key",
+			Paths: []string{"service-a.txt"},
+			Step:  Step{Trigger: "step-a-trigger"},
+		},
+		{
+			Key:       "service-b-key",
+			Paths:     []string{"service-b.txt"},
+			DependsOn: []string{"service-a-key"},
+			Step:      Step{Trigger: "step-b-trigger"},
+		},
+	}
+	expectedSteps := []Step{
+		{
+			Key:     "service-a-key",
+			Trigger: "step-a-trigger",
+		},
+		{
+			Key:       "service-b-key",
+			Trigger:   "step-b-trigger",
+			DependsOn: []string{"service-a-key"},
+		},
+	}
+
+	steps, err := stepsToTrigger(changedFiles, watchConfigs)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedSteps, steps)
+}
+
+// If a steps dependencies dependency has changed, it should be triggered
+// If a steps dependency has changed, it should have the property "depends_on" set to the dependency key
+func TestStepsToTrigger_TriggersAStepWhenDependenciesDependencyHasTriggered(t *testing.T) {
+	changedFiles := []string{"service-a.txt"}
+	watchConfigs := []WatchConfig{
+		{
+			Key:   "service-a-key",
+			Paths: []string{"service-a.txt"},
+			Step:  Step{Trigger: "step-a-trigger"},
+		},
+		{
+			Key:       "service-b-key",
+			Paths:     []string{"service-b.txt"},
+			DependsOn: []string{"service-a-key"},
+			Step:      Step{Trigger: "step-b-trigger"},
+		},
+		{
+			Key:       "service-c-key",
+			Paths:     []string{"service-c.txt"},
+			DependsOn: []string{"service-b-key"},
+			Step:      Step{Trigger: "step-c-trigger"},
+		},
+	}
+	expectedSteps := []Step{
+		{
+			Key:     "service-a-key",
+			Trigger: "step-a-trigger",
+		},
+		{
+			Key:       "service-b-key",
+			Trigger:   "step-b-trigger",
+			DependsOn: []string{"service-a-key"},
+		},
+		{
+			Key:       "service-c-key",
+			Trigger:   "step-c-trigger",
+			DependsOn: []string{"service-b-key"},
+		},
+	}
+
+	steps, err := stepsToTrigger(changedFiles, watchConfigs)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedSteps, steps)
+}
+
+// If a steps dependency has _not_ changed, it should not have the property "depends_on"
+func TestStepsToTrigger_ShouldNotAddDependsOnIfDependencyHasNotTriggered(t *testing.T) {
+	changedFiles := []string{"service-b.txt"}
+	watchConfigs := []WatchConfig{
+		{
+			Key:   "service-a-key",
+			Paths: []string{"service-a.txt"},
+			Step:  Step{Trigger: "step-a-trigger"},
+		},
+		{
+			Key:       "service-b-key",
+			Paths:     []string{"service-b.txt"},
+			DependsOn: []string{"service-a-key"},
+			Step:      Step{Trigger: "step-b-trigger"},
+		},
+	}
+	expectedSteps := []Step{
+		{
+			Key:     "service-b-key",
+			Trigger: "step-b-trigger",
+		},
+	}
+
+	steps, err := stepsToTrigger(changedFiles, watchConfigs)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedSteps, steps)
+}
+
+// Given a step has multiple dependencies
+// When only a single dependency has changed
+// Then only the changed dependency should appear in it's "depends_on" property
+func TestStepsToTrigger_ShouldAddToDependsOnOnlyIfDependencyHasTriggered(t *testing.T) {
+	changedFiles := []string{"service-a.txt"}
+	watchConfigs := []WatchConfig{
+		{
+			Key:   "service-a-key",
+			Paths: []string{"service-a.txt"},
+			Step:  Step{Trigger: "step-a-trigger"},
+		},
+		{
+			Key:   "service-b-key",
+			Paths: []string{"service-b.txt"},
+			Step:  Step{Trigger: "step-b-trigger"},
+		},
+		{
+			Key:       "service-c-key",
+			Paths:     []string{"service-c.txt"},
+			DependsOn: []string{"service-a-key", "service-b-key"},
+			Step:      Step{Trigger: "step-c-trigger"},
+		},
+	}
+	expectedSteps := []Step{
+		{
+			Key:     "service-a-key",
+			Trigger: "step-a-trigger",
+		},
+		{
+			Key:       "service-c-key",
+			Trigger:   "step-c-trigger",
+			DependsOn: []string{"service-a-key"},
+		},
+	}
+
+	steps, err := stepsToTrigger(changedFiles, watchConfigs)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedSteps, steps)
+}
+
+// If a step and it's dependency both directly trigger, the step should include it's dependency in DependsOn.
+func TestStepsToTrigger_ShouldAddADependsOnIfAStepAndItsDependencyTriggerIndependently(t *testing.T) {
+	changedFiles := []string{"service-a.txt", "service-b.txt"}
+	watchConfigs := []WatchConfig{
+		{
+			Key:   "service-a-key",
+			Paths: []string{"service-a.txt"},
+			Step:  Step{Trigger: "step-a-trigger"},
+		},
+		{
+			Key:       "service-b-key",
+			Paths:     []string{"service-b.txt"},
+			Step:      Step{Trigger: "step-b-trigger"},
+			DependsOn: []string{"service-a-key"},
+		},
+	}
+	expectedSteps := []Step{
+		{
+			Key:     "service-a-key",
+			Trigger: "step-a-trigger",
+		},
+		{
+			Key:       "service-b-key",
+			Trigger:   "step-b-trigger",
+			DependsOn: []string{"service-a-key"},
+		},
+	}
+
+	steps, err := stepsToTrigger(changedFiles, watchConfigs)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedSteps, steps)
+
+}
+
+func TestAnnotateStep_AddsKey(t *testing.T) {
+	watchConfig := WatchConfig{
+		Paths: []string{"service-a.txt"},
+		Key:   "service-a",
+		Step:  Step{Trigger: "service-a-trigger"},
+	}
+	expectedStep := Step{
+		Key:     "service-a",
+		Trigger: "service-a-trigger",
+	}
+
+	step := annotateStep(watchConfig, []string{})
+
+	assert.Equal(t, expectedStep, step)
+}
+
+func TestAnnotateStep_AddsDependsOn(t *testing.T) {
+	watchConfig := WatchConfig{
+		Paths: []string{"service-a.txt"},
+		Key:   "service-a",
+		Step:  Step{Trigger: "service-a-trigger"},
+	}
+	expectedStep := Step{
+		Key:       "service-a",
+		Trigger:   "service-a-trigger",
+		DependsOn: []string{"service-b"},
+	}
+
+	step := annotateStep(watchConfig, []string{"service-b"})
+
+	assert.Equal(t, expectedStep, step)
+}
+
 func TestGeneratePipeline(t *testing.T) {
 	steps := []Step{
 		{

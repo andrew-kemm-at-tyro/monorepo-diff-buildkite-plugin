@@ -80,6 +80,22 @@ func diff(command string) ([]string, error) {
 func stepsToTrigger(files []string, watch []WatchConfig) ([]Step, error) {
 	steps := []Step{}
 
+	type WatchTrigger struct {
+		w         WatchConfig
+		triggered bool
+	}
+
+	// TODO: This doesn't really handle dependencies that are out of order.
+	keyToWatchConfig := map[string]WatchTrigger{}
+	for _, w := range watch {
+		if w.Key != "" {
+			keyToWatchConfig[w.Key] = WatchTrigger{
+				w:         w,
+				triggered: false,
+			}
+		}
+	}
+
 	for _, w := range watch {
 		for _, p := range w.Paths {
 			for _, f := range files {
@@ -87,8 +103,19 @@ func stepsToTrigger(files []string, watch []WatchConfig) ([]Step, error) {
 				if err != nil {
 					return nil, err
 				}
-				if match {
-					steps = append(steps, w.Step)
+
+				var triggeredDependencies []string
+				for _, depKey := range w.DependsOn {
+					if keyToWatchConfig[depKey].triggered {
+						triggeredDependencies = append(triggeredDependencies, depKey)
+					}
+				}
+
+				if match || len(triggeredDependencies) > 0 {
+					t := keyToWatchConfig[w.Key]
+					t.triggered = true
+					keyToWatchConfig[w.Key] = t
+					steps = append(steps, annotateStep(w, triggeredDependencies))
 					break
 				}
 			}
@@ -96,6 +123,20 @@ func stepsToTrigger(files []string, watch []WatchConfig) ([]Step, error) {
 	}
 
 	return dedupSteps(steps), nil
+}
+
+func annotateStep(w WatchConfig, triggeredDependencies []string) Step {
+	step := w.Step
+
+	if w.Key != "" {
+		step.Key = w.Key
+	}
+
+	if len(triggeredDependencies) > 0 {
+		step.DependsOn = triggeredDependencies
+	}
+
+	return step
 }
 
 // matchPath checks if the file f matches the path p.

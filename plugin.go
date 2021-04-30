@@ -29,13 +29,16 @@ type HookConfig struct {
 
 // WatchConfig Plugin watch configuration
 type WatchConfig struct {
-	RawPath interface{} `json:"path"`
-	Paths   []string
-	Step    Step `json:"config"`
+	Key       string
+	RawPath   interface{} `json:"path"`
+	Paths     []string
+	DependsOn []string
+	Step      Step `json:"config"`
 }
 
 // Step is buildkite pipeline definition
 type Step struct {
+	Key       string            `yaml:"key,omitempty"`
 	Trigger   string            `yaml:"trigger,omitempty"`
 	Label     string            `yaml:"label,omitempty"`
 	Build     Build             `yaml:"build,omitempty"`
@@ -45,6 +48,7 @@ type Step struct {
 	RawEnv    interface{}       `json:"env" yaml:",omitempty"`
 	Env       map[string]string `yaml:"env,omitempty"`
 	Async     bool              `yaml:"async,omitempty"`
+	DependsOn []string          `yaml:"depends_on,omitempty"`
 }
 
 // Agent is Buildkite agent definition
