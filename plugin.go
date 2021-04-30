@@ -29,11 +29,11 @@ type HookConfig struct {
 
 // WatchConfig Plugin watch configuration
 type WatchConfig struct {
-	Key       string
+	Key       string      `json:"key"`
 	RawPath   interface{} `json:"path"`
 	Paths     []string
-	DependsOn []string
-	Step      Step `json:"config"`
+	DependsOn []string `json:"depends_on"`
+	Step      Step     `json:"config"`
 }
 
 // Step is buildkite pipeline definition
